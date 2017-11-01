@@ -1,0 +1,326 @@
+# -*- coding:utf-8 -*-
+import csv
+import sys
+from threading import Thread
+
+import requests
+import time
+import os
+from lxml import etree
+import re
+import pandas as pd
+import matplotlib as plt
+import matplotlib.pyplot as plt
+import multiprocessing as mp
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
+"""cookies = {
+    "__jda=122270672.372601625.1508901534.1508912320.1508915999.4
+	"unpl=V2_ZzNtbRZRFBF1CENRKRheB2IEEQgRURAQIV1CBngRCVEzAkJVclRCFXMURlVnGlgUZwcZXkFcQBNFCHZXfBpaAmEBFl5yBBNNIEwEACtaDlwJARVVS1ZDFnMPQlVLKV8FVwMTbUBRQBJ0CEFXfylsAlczIllFVUMcdDhHZHopHlE7BxpdR1FLWHcORVN6GVsGYzMTbUE%3d
+	"__jdc=122270672
+	"__jdv=122270672|baidu-search|t_262767352_baidusearch|cpc|36980127650_0_e7f51144c033462db7b4ed5c29dee0a9|1508916147690
+	"__jdu=372601625
+	"qr_t=c
+	"alc=AspBriwKOVVtHLa46F/Otw==_t=tWDDrYVzFDELFmXkx8xQVeXiNDYOM3iyhBAI/bSAYV0=
+	"TrackID=1UnHaNsWpe9LdGIT7vMp1yQsCI2b4r_aFx-XQ6ec0hJcSm1dqUjbfMStN9Udo0TOtf0rDTJgEtlZZPxMk66Nz33sf2Fi6hbMgYnHj9NXuemfCi43fCeyM5c6KpQHRiuu7
+	"pinId=1MiwrqzMKfHDs_aMNtMWZQ
+	"pin=18810922035_p
+	"thor=6D39AD3A6C86DF5BBFC4578B96E0792AFE781556CA6B23349064880ED3FFB4B5F5309F1B5FD35FFE8C997E69ED49669F8D147C00C7343C4B64E566D4DCCDD07A4C66C04A49E51999C4007E6AFA770BEA6FDB73551287A91BB67A654E6D21CCBBAC6F74FD6BAE9D88A0AF3C41B41B3E461E722B94E9BB190DD2227A2B48BE56BCBF0DB733377EB3452B1851DEE375DCA0
+	"ol=1
+	"_tp=q7EZn%2BUo8bONh1L2ntpmbA%3D%3D
+	"_pst=18810922035_p
+	"ceshi3.com=000
+	"ipLoc-djd=53283-53309-0-0
+	"3AB9D23F7A4B3C9B=VB26BPRZ4RBJP4LFKDH4C2CHLA4ZAZV5JSHACWXVTEWNWJO4YH23VRVO76KF6377WUB6GHP4FWN73X634VLOK5EZSQ
+	"__jdb=122270672.7.372601625|4.1508915999
+	"CCC_SE=ADC_bDQRiJdPNp0ljZ1HB%2fivbJN72QayfHnj4VIn4c33ok%2bJ4xeD9YfNuOAeiA4HT5gqxT0pALi6LfwNBD64nzJ1A2LsL7jjoW7b6QNeViwacjZi6UkXOaqtLMbB4403S3asv2ClCAjbZ7LG2ehF9qTRJsfmI7xomo2G11anxKVXDmEnw0YuygAt%2f9qsy5vpVeSgOZDm6xwNg4xAC958ofFQGO92elkX5uIb9varSPqBHEC6sz4ZO29Oip1kmjPIOKfhBmlV%2bFDbznKrLZbSsK4y%2bfHokW2IThdxf5YkjFtY3fMtNgcxkOUfc8tjZdaNxnrpZVn265DcGLUW9J9eU7lEoj%2f3LZK239%2fGuZ%2b0Ps7R%2flx9yAHj3AP5wnMdmyJOYArRUmxrueGeZYHWRaJyUXY6x27oFe9PzijpvE1zaEJwqSxn0L%2bPtcznKyWBAtEoQDKO6vO1uawqVvnlWlnunROEHev590c1QBycH8jpr9cu4yNdYUW3CZkIK2%2bBDksK3O9%2b"}
+"""
+
+def sumComment(productId):
+    url = 'http://club.jd.com/clubservice.aspx?method=GetCommentsCount&referenceIds=' + str(productId)
+    response = requests.get(url).content
+    sumComment = re.findall(r'"CommentCount":(.*?),', response)
+    return int(sumComment[0])
+def keyTrue(x):
+    keyWord = ['保护膜','屏幕膜','膜','键盘膜','适配器','内胆包','电脑包']
+    count = 0
+    for i in keyWord:
+        if i in x:
+            count +=1
+    if count > 0:
+        return False
+    else:
+        return True
+def getComment(productId):
+    data = {
+        'productId': str(productId),
+        'score': '0',
+        'sortType': '5',
+        'page': '0',
+        'pageSize': '10',
+        'isShadowSku': '0'
+    }
+    keystr = '联想YOGA 720 13寸'
+    osd = os.getcwd()
+    dir = osd + "\\" + keystr.encode('gb2312')
+    s = dir + "\\" + str(productId) + ".txt"
+    print s
+    newfile = file(s, 'w')
+    url = 'https://club.jd.com/comment/productPageComments.action'
+    comment_total = sumComment(productId)
+    if comment_total % 10 == 0:  # pageNum of comments, one page has 10 comments
+        page = comment_total / 10
+    else:
+        page = comment_total / 10 + 1
+    for pagenum in range(0, page):
+        data['page'] = pagenum
+        request = requests.session()
+        request.keep_alive = False
+        response = requests.get(url, data, cookies=JD.cookie, headers=JD.header).content
+        time.sleep(1)
+        newfile.write(response)
+        print pagenum
+    newfile.close()
+
+
+class JD:
+    cookie = {'TrackID': '1_VWwvLYiy1FUr7wSr6HHmHhadG8d1-Qv-TVaw8JwcFG4EksqyLyx1SO7O06_Y_XUCyQMksp3RVb2ezA',
+              '__jda': '122270672.1507607632.1423495705.1479785414.1479794553.92',
+              '__jdb': '122270672.1.1507607632|92.1479794553',
+              '__jdc': '122270672',
+              '__jdu': '1507607632',
+              '__jdv': '122270672|direct|-|none|-|1478747025001',
+              'areaId': '1',
+              'cn': '0',
+              'ipLoc-djd': '1-72-2799-0',
+              'ipLocation': '%u5317%u4EAC',
+              'mx': '0_X',
+              'rkv': 'V0800',
+              'user-key': '216123d5-4ed3-47b0-9289-12345',
+              'xtest': '4657.553.d9798cdf31c02d86b8b81cc119d94836.b7a782741f667201b54880c925faec4b'}
+
+    header = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
+        'Accept': 'text/html;q=0.9,*/*;q=0.8',
+        'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+        'Connection': 'close',
+        'Referer': 'https://www.jd.com/'
+    }
+
+    def __init__(self, keystr):
+        self.productIdList = []
+        s = os.getcwd()
+        if not os.path.exists(s + "\\" + keystr.encode('gb2312')):
+            os.makedirs(s + "\\" + keystr.encode('gb2312'))
+        self.dir = s + "\\" + keystr.encode('gb2312')
+        self.keystr = keystr
+    """def getProductId(self):
+        # url = 'https://search.jd.com/Search?keyword=%E8%81%94%E6%83%B3%20IdeaPad%20110-15&enc=utf-8'
+        url = 'https://search.jd.com/Search?keyword=%s&enc=utf-8' % self.keystr.encode('utf-8')
+        request = requests.session()
+        request.keep_alive = False
+        html = request.get(url, cookies=JD.cookie, headers=JD.header).content
+        selector = etree.HTML(html)
+        print 'Get homepage successfully!'
+        setId = []
+        setFlag = []
+        productIds = selector.xpath('//li[@class="gl-item"]/@data-sku')
+        #productNames = selector.xpath('//front')
+        for i in productIds:
+            i = int(i)
+            print i
+            setId.append(i)
+            if i < 99999999:
+                setFlag.append('Yes')
+            else:
+                setFlag.append('No')
+                print 'no'
+        self.productIdList = setId
+        print len(setId)
+        print len(setFlag)
+
+        table = pd.DataFrame({'productId': self.productIdList, 'JDsale': setFlag})
+        table = table.set_index('productId')  # 设置creationTime字段为索引列
+        # table['days'] = table['days'].astype(np.int64)  # 设置days字段为数值格式
+        table.to_csv(self.dir+"\\sum.csv")
+"""
+    def getProductId(self):
+        # url = 'https://search.jd.com/Search?keyword=%E8%81%94%E6%83%B3%20IdeaPad%20110-15&enc=utf-8'
+        url = 'https://search.jd.com/Search?keyword=%s&enc=utf-8' % self.keystr.encode('utf-8')
+        request = requests.session()
+        request.keep_alive = False
+        html = request.get(url, cookies=JD.cookie, headers=JD.header).content
+        selector = etree.HTML(html)
+        print 'Get homepage successfully!'
+        setFlag = []
+        productIds = selector.xpath('//li[@class="gl-item"]/@data-sku')
+        for i in productIds:
+            i = int(i)
+            self.productIdList.append(i)
+            if i < 99999999:
+                setFlag.append('Yes')
+            else:
+                setFlag.append('No')
+        productNames =[]
+        for id in productIds:
+            url_one = 'https://item.jd.com/%d.html'%int(id)
+            html_one = request.get(url_one, cookies=JD.cookie, headers=JD.header).content
+            selector_one = etree.HTML(html_one)
+            name = selector_one.xpath('//div[@class="sku-name"]')
+            name = name[0].xpath('string(.)').replace("\n", " ")
+            name = ' '.join(name.split())
+            print name
+            productNames.append(name)
+        num = 0
+        print len(self.productIdList),len(productNames),len(setFlag)
+        while num < len(self.productIdList):
+            if not keyTrue(productNames[num]):
+                del productNames[num]
+                del self.productIdList[num]
+                del setFlag[num]
+                num -= 1
+            num += 1
+        print len(productIds), len(productNames), len(setFlag)
+        print sys.getdefaultencoding()
+
+        table = pd.DataFrame({'productId': self.productIdList, 'productName':productNames, 'JDsale': setFlag})
+        table = table.set_index('productId')  # 设置creationTime字段为索引列
+        # table['days'] = table['days'].astype(np.int64)  # 设置days字段为数值格式
+        table.to_csv(self.dir + "\\sum.csv")
+
+    """clean data"""
+    def cleanData(self, productId):
+        s = self.dir + "\\" + str(productId) + ".txt"
+        html = open(s, 'r').read()
+        userClient = re.findall(r',"usefulVoteCount".*?,"userClientShow":(.*?),', html)  # 用户购买商品时使用的媒介，手机客户端还是电脑端
+        userLevel = re.findall(r'"referenceImage".*?,"userLevelName":(.*?),', html)  # 用户等级
+        productColor = re.findall(r'"creationTime".*?,"productColor":(.*?),', html)  # 产品型号
+        productSize = re.findall(r'"creationTime".*?,"productSize":(.*?),', html)
+        recommend = re.findall(r'"creationTime".*?,"recommend":(.*?),', html)  # 是否推荐
+        nickname = re.findall(r'"creationTime".*?,"nickname":(.*?),', html)  # 用户名
+        userProvince = re.findall(r'"referenceImage".*?,"userProvince":(.*?),', html)  # 用户所在地
+        usefulVoteCount = re.findall(r'"referenceImage".*?,"usefulVoteCount":(.*?),', html)  # 使用正则提取days字段信息
+        days = re.findall(r'"usefulVoteCount".*?,"days":(.*?)}', html)  # 时间
+        score = re.findall(r'"referenceImage".*?,"score":(.*?),', html)  # 使用正则提取score字段信息
+
+        isMobile = re.findall(r'"usefulVoteCount".*?,"isMobile":(.*?),', html)  # 是否为手机端客户
+        mobile = []
+        for m in isMobile:
+            n = m.replace('}', '')
+            mobile.append(n)  # 再次清洗mobile数据
+
+        creationTime1 = re.findall(r'"creationTime":(.*?),"referenceName', html)  # 创建评论的时间
+        creationTime = []
+        for d in creationTime1:
+            date = d[1:20]
+            creationTime.append(date)  # 再次清洗时间数据
+
+        month = []
+        for h in creationTime:
+            month.append(h.split("-")[1])
+        afterDays = []
+        for i in days:
+            i = i.split(":")[1]
+            afterDays.append(i)
+        days_1 = []
+        for i in days:
+            i = i.split(",")[0]
+            days_1.append(i)
+        result, number = re.subn(r'"showOrderComment":{.*?},', ' ', html)  # 评论内容
+        result, number = re.subn(r'"hAfterUserComment":{.*?},', ' ', result)  # 去掉追评内容
+        content = re.findall(r'"guid".*?,"content":(.*?),', result)
+        content_1 = []
+        #newfile = file("content_1.txt", 'w')
+        for i in content:
+            if not "img" in i:
+                content_1.append(i)  # 排除掉所有包含图片的评论信息，已达到评论去重的目的。\
+        """if len(content_1)-len(productSize) == 1:
+            creationTime.pop()
+            nickname.pop()
+            recommend.pop()
+            mobile.pop()
+            userClient.pop()
+            userLevel.pop()
+            usefulVoteCount.pop()
+            content_1.pop()
+            days_1.pop()
+            afterDays.pop()
+            month.pop()
+            score.pop()"""
+        if len(content_1)-len(creationTime) == 1:
+            content_1.pop()
+        fileFlag = False
+        try:
+            print len(creationTime), len(content_1), len(days_1), len(score),len(afterDays),len(mobile),len(month),len(nickname),len(productColor),
+            len(recommend), len(usefulVoteCount)
+            table = pd.DataFrame(
+                {'creationTime': creationTime, 'nickname': nickname, 'productSize': productColor,
+                 'recommend': recommend, 'mobile': mobile, 'userClient': userClient,
+                 'userLevel': userLevel, 'usefulVoteCount': usefulVoteCount,
+                 'content_1': content_1, 'days': days_1, 'afterDays': afterDays, 'months': month, 'score': score})
+            table['creationTime'] = pd.to_datetime(table['creationTime'])  # 将creationTime字段更改为时间格式
+            table = table.set_index('creationTime')  # 设置creationTime字段为索引列
+            # table['days'] = table['days'].astype(np.int64)  # 设置days字段为数值格式
+            table.to_csv(self.dir+"\\" + str(productId) + '_jd_table.csv')
+            fileFlag = True
+        except Exception, e:
+            print "Error1: ", e
+        if fileFlag == True:
+            os.remove(self.dir+"\\" + str(productId) + ".txt")
+
+    """data analyse"""
+
+    def dataAnalyze(self, productId):
+        table = pd.read_csv(str(productId) + 'jd_table.csv')
+        # 在table表中筛选使用移动设备的条目并创建新表
+        mobile_t = table[table['mobile'] == True]
+        # 在table中筛选没有使用移动设备的条目并创建新表
+        mobile_f = table[table["mobile"] == False]
+        print mobile_f
+        # 按月汇总使用移动设备的数据
+        mobile_t_m = mobile_t.resample('M', how=sum)
+        # 按月汇总不使用移动设备的数据
+        mobile_f_m = mobile_f.resample('M', how=sum)
+        # 提取使用移动设备的按月汇总nickname
+        mobile_y = mobile_t_m['nickname']
+        # 提取没有使用移动设备的按月汇总nickname
+        mobile_n = mobile_f_m['nickname']
+        plt.subplot(2, 1, 1)
+        plt.plot(mobile_y, 'go', mobile_y, 'g-', color='#99CC01', linewidth=3, markeredgewidth=3,
+                 markeredgecolor='#99CC01', alpha=0.8)
+        plt.ylabel('移动设备评论数量')
+        plt.title('PC与移动设备评论数量变化趋势')
+        plt.show()
+    def readProduct(self):
+        Idfile = open(self.dir + "\\sum.csv", 'r')
+        lines = Idfile.readlines()
+        count = 0
+        for line in lines:
+            line = line.split(',')
+            if count != 0:
+                self.productIdList.append(line[0])
+            count = 1
+    def start(self):
+        try:
+            print '==========================================================================='
+
+            JD.getProductId(self)
+            p = mp.Pool()
+            p.map_async(getComment, self.productIdList)
+            p.close()
+            p.join()
+
+            for i in range(0, len(self.productIdList)):
+                print i
+                t = Thread(target=JD.cleanData(self, self.productIdList[i]))
+                t.daemon = True
+                t.start()
+        except Exception, e:
+            print "Error2: ", e
+
+
+if __name__ == "__main__":
+    jd = JD(keystr="联想YOGA 720 13寸")
+    jd.start()
+"""需要修改两次关键字，一处实在main函数中，一处是在getComment()中"""
